@@ -9,38 +9,32 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Copy } from 'lucide-react';
 import { POSITIONS, WORK_TYPES, SHIFT_STATUSES, PAYMENT_STATUSES, PAYOUT_STATUSES, RATINGS, LEGAL_ENTITIES } from '@/lib/constants';
 
 const EMPTY = {
   date: new Date().toISOString().slice(0, 10),
-  client_name: '',
-  object_name: '',
-  legal_entity: '',
-  employee_name: '',
-  employee_phone: '',
-  position: '',
-  work_type: '',
+  client_name: '', object_name: '', legal_entity: '',
+  employee_name: '', employee_phone: '', position: '', work_type: '',
   is_self_employed: false,
-  hours: '',
-  employee_rate: '',
-  employee_payout: '',
-  adjustment: '',
-  extra_amount: '',
-  client_rate: '',
-  client_extra: '',
-  client_total: '',
+  hours: '', employee_rate: '', employee_payout: '',
+  adjustment: '', extra_amount: '',
+  client_rate: '', client_extra: '', client_total: '',
   hr_salary: '',
-  status: 'planned',
-  payment_status: 'not_invoiced',
-  payout_status: 'pending',
-  rating: '',
-  notes: '',
+  status: 'planned', payment_status: 'not_invoiced', payout_status: 'pending',
+  rating: '', notes: '',
 };
 
-export default function ShiftFormDialog({ open, onClose, shift }) {
+function fmtMoney(n) {
+  if (!n) return '0 ₽';
+  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(n);
+}
+
+export default function ShiftFormDialog({ open, onClose, shift, duplicateFrom }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(EMPTY);
   const isEdit = !!shift?.id;
+  const isDuplicate = !!duplicateFrom;
 
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => entities.Client.list() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => entities.Employee.list() });
@@ -48,15 +42,26 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
   useEffect(() => {
     if (shift) {
       setForm({ ...EMPTY, ...shift });
+    } else if (duplicateFrom) {
+      // Дублирование: копируем всё кроме id и дат оплаты, обновляем дату на сегодня
+      const { id, created_at, updated_at, ...rest } = duplicateFrom;
+      setForm({
+        ...EMPTY,
+        ...rest,
+        date: new Date().toISOString().slice(0, 10),
+        status: 'planned',
+        payment_status: 'not_invoiced',
+        payout_status: 'pending',
+      });
     } else {
       setForm(EMPTY);
     }
-  }, [shift, open]);
+  }, [shift, duplicateFrom, open]);
 
-  // Автоподстановка сотрудника
+  // Автоподстановка сотрудника (ставки из базы)
   function handleEmployeeSelect(name) {
     const emp = employees.find(e => e.full_name === name);
-    setForm(f => ({
+    setForm(f => recalc({
       ...f,
       employee_name: name,
       employee_phone: emp?.phone || f.employee_phone,
@@ -64,18 +69,19 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
     }));
   }
 
-  // Автоподстановка заказчика
+  // Автоподстановка заказчика (ставки из базы)
   function handleClientSelect(name) {
     const client = clients.find(c => c.name === name);
-    setForm(f => ({
+    setForm(f => recalc({
       ...f,
       client_name: name,
       legal_entity: client?.legal_entity || f.legal_entity,
       object_name: client?.default_object || f.object_name,
+      client_rate: client?.client_rate_default || f.client_rate,
     }));
   }
 
-  // Авторасчёт
+  // Авторасчёт: ФОТ, итог заказчику, маржа, налог
   function recalc(updated) {
     const hours = parseFloat(updated.hours) || 0;
     const empRate = parseFloat(updated.employee_rate) || 0;
@@ -94,11 +100,20 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
     setForm(f => recalc({ ...f, [field]: value }));
   }
 
+  // Живой расчёт маржи и налога для превью
+  const clientTotal = parseFloat(form.client_total) || 0;
+  const empPayout = parseFloat(form.employee_payout) || 0;
+  const hrSalary = parseFloat(form.hr_salary) || 0;
+  const taxRate = LEGAL_ENTITIES.find(e => e.value === form.legal_entity)?.tax_rate || 0;
+  const taxAmount = Math.round(clientTotal * taxRate);
+  const margin = clientTotal - empPayout - hrSalary - taxAmount;
+  const marginPct = clientTotal > 0 ? Math.round((margin / clientTotal) * 100) : 0;
+
   const saveMutation = useMutation({
     mutationFn: (data) => isEdit ? entities.Shift.update(shift.id, data) : entities.Shift.create(data),
     onSuccess: () => {
       qc.invalidateQueries(['shifts']);
-      toast.success(isEdit ? 'Смена обновлена' : 'Смена добавлена');
+      toast.success(isEdit ? 'Смена обновлена' : isDuplicate ? 'Смена продублирована' : 'Смена добавлена');
       onClose();
     },
     onError: (e) => toast.error('Ошибка: ' + e.message),
@@ -106,18 +121,20 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!form.date || !form.client_name) { toast.error('Заполните обязательные поля'); return; }
+    if (!form.date || !form.client_name) { toast.error('Заполните дату и заказчика'); return; }
     saveMutation.mutate(form);
   }
 
   const clientNames = [...new Set(clients.map(c => c.name).filter(Boolean))];
   const employeeNames = [...new Set(employees.map(e => e.full_name).filter(Boolean))];
 
+  const titleLabel = isDuplicate ? '📋 Дублировать смену' : isEdit ? 'Редактировать смену' : 'Новая смена';
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Редактировать смену' : 'Новая смена'}</DialogTitle>
+          <DialogTitle>{titleLabel}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -139,14 +156,11 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
               <div className="space-y-1.5">
                 <Label>Заказчик *</Label>
                 <Select value={form.client_name} onValueChange={handleClientSelect}>
-                  <SelectTrigger><SelectValue placeholder="Выберите или введите" /></SelectTrigger>
-                  <SelectContent>
-                    {clientNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                  </SelectContent>
+                  <SelectTrigger><SelectValue placeholder="Выберите" /></SelectTrigger>
+                  <SelectContent>{clientNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
                 </Select>
                 {!clientNames.includes(form.client_name) && (
-                  <Input placeholder="Или введите вручную" value={form.client_name}
-                    onChange={e => set('client_name', e.target.value)} />
+                  <Input placeholder="Введите вручную" value={form.client_name} onChange={e => set('client_name', e.target.value)} />
                 )}
               </div>
               <div className="space-y-1.5">
@@ -157,7 +171,7 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
                 <Label>Юр. лицо</Label>
                 <Select value={form.legal_entity} onValueChange={v => set('legal_entity', v)}>
                   <SelectTrigger><SelectValue placeholder="Юр. лицо" /></SelectTrigger>
-                  <SelectContent>{LEGAL_ENTITIES.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{LEGAL_ENTITIES.map(e => <SelectItem key={e.value} value={e.value}>{e.label} ({(e.tax_rate*100).toFixed(0)}%)</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
@@ -181,8 +195,7 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
                   <SelectContent>{employeeNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
                 </Select>
                 {!employeeNames.includes(form.employee_name) && (
-                  <Input placeholder="Или введите вручную" value={form.employee_name}
-                    onChange={e => set('employee_name', e.target.value)} />
+                  <Input placeholder="Введите вручную" value={form.employee_name} onChange={e => set('employee_name', e.target.value)} />
                 )}
               </div>
               <div className="space-y-1.5">
@@ -225,8 +238,7 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
               </div>
               <div className="space-y-1.5 col-span-2">
                 <Label>Выплата сотруднику (итог)</Label>
-                <Input type="number" value={form.employee_payout} onChange={e => set('employee_payout', e.target.value)}
-                  className="font-semibold" />
+                <Input type="number" value={form.employee_payout} onChange={e => set('employee_payout', e.target.value)} className="font-semibold" />
               </div>
               <div className="space-y-1.5">
                 <Label>Ставка заказчику (₽/ч)</Label>
@@ -238,14 +250,39 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
               </div>
               <div className="space-y-1.5">
                 <Label>Итого с заказчика</Label>
-                <Input type="number" value={form.client_total} onChange={e => set('client_total', e.target.value)}
-                  className="font-semibold text-emerald-700" />
+                <Input type="number" value={form.client_total} onChange={e => set('client_total', e.target.value)} className="font-semibold text-emerald-700" />
               </div>
               <div className="space-y-1.5">
                 <Label>ЗП HR</Label>
                 <Input type="number" value={form.hr_salary} onChange={e => set('hr_salary', e.target.value)} placeholder="0" />
               </div>
             </div>
+
+            {/* Автокалькулятор маржи */}
+            {(clientTotal > 0 || empPayout > 0) && (
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                <div className="bg-zinc-50 rounded-lg p-3 text-center">
+                  <p className="text-[10px] text-zinc-400 uppercase">Выручка</p>
+                  <p className="text-sm font-bold text-zinc-900 mt-0.5">{fmtMoney(clientTotal)}</p>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3 text-center">
+                  <p className="text-[10px] text-zinc-400 uppercase">ФОТ + HR</p>
+                  <p className="text-sm font-bold text-red-600 mt-0.5">{fmtMoney(empPayout + hrSalary)}</p>
+                </div>
+                {taxAmount > 0 && (
+                  <div className="bg-amber-50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-zinc-400 uppercase">Налог {(taxRate*100).toFixed(0)}%</p>
+                    <p className="text-sm font-bold text-amber-600 mt-0.5">{fmtMoney(taxAmount)}</p>
+                  </div>
+                )}
+                <div className={`rounded-lg p-3 text-center col-span-${taxAmount > 0 ? 1 : 2} ${margin >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <p className="text-[10px] text-zinc-400 uppercase">Маржа</p>
+                  <p className={`text-sm font-bold mt-0.5 ${margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {fmtMoney(margin)} <span className="text-xs font-normal">({marginPct}%)</span>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Оплаты и оценка */}
@@ -276,7 +313,6 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
             </div>
           </div>
 
-          {/* Примечание */}
           <div className="space-y-1.5">
             <Label>Примечания</Label>
             <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Любые заметки..." />
@@ -284,8 +320,8 @@ export default function ShiftFormDialog({ open, onClose, shift }) {
 
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Отмена</Button>
-            <Button type="submit" disabled={saveMutation.isPending} className="bg-amber-500 hover:bg-amber-600 text-white">
-              {saveMutation.isPending ? 'Сохранение...' : isEdit ? 'Сохранить' : 'Добавить'}
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Сохранение...' : isEdit ? 'Сохранить' : isDuplicate ? 'Создать копию' : 'Добавить'}
             </Button>
           </div>
         </form>
