@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { entities } from '@/api/entities';
-import { Plus, Search, Edit2, Trash2, Building2, MapPin, Phone } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Phone, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -18,17 +18,25 @@ const EMPTY = {
   client_rate_default: '', notes: '', status: 'active',
 };
 
+const PAYMENT_LABELS = {
+  prepay: 'Предоплата', postpay: 'Постоплата',
+  weekly: 'Раз в неделю', biweekly: '2 раза в месяц', monthly: 'Раз в месяц',
+};
+
+function fmt(n) {
+  if (!n) return '—';
+  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(n);
+}
+
 function ClientForm({ client, onClose }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(client ? { ...EMPTY, ...client } : EMPTY);
   const isEdit = !!client?.id;
-
   const save = useMutation({
     mutationFn: d => isEdit ? entities.Client.update(client.id, d) : entities.Client.create(d),
     onSuccess: () => { qc.invalidateQueries(['clients']); toast.success(isEdit ? 'Обновлено' : 'Добавлено'); onClose(); },
     onError: e => toast.error(e.message),
   });
-
   function set(f, v) { setForm(p => ({ ...p, [f]: v })); }
 
   return (
@@ -63,11 +71,11 @@ function ClientForm({ client, onClose }) {
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label>Адрес / объект по умолчанию</Label>
-          <Input value={form.address} onChange={e => set('address', e.target.value)} placeholder="Адрес основного объекта" />
+          <Input value={form.address} onChange={e => set('address', e.target.value)} />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label>Название объекта по умолчанию</Label>
-          <Input value={form.default_object} onChange={e => set('default_object', e.target.value)} placeholder="Например: Ресторан Остров Мечты" />
+          <Label>Название объекта</Label>
+          <Input value={form.default_object} onChange={e => set('default_object', e.target.value)} placeholder="Ресторан Остров Мечты" />
         </div>
         <div className="space-y-1.5">
           <Label>Условия оплаты</Label>
@@ -115,6 +123,83 @@ function ClientForm({ client, onClose }) {
   );
 }
 
+/* ── Mobile card ── */
+function ClientCard({ client, stats, onEdit, onDelete }) {
+  const legal = LEGAL_ENTITIES.find(l => l.value === client.legal_entity);
+  return (
+    <div className="bg-white rounded-xl border border-zinc-200 p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-zinc-900 text-sm leading-tight">{client.name}</p>
+              {legal && <p className="text-xs text-zinc-400">{legal.label}</p>}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => onEdit(client)}
+            className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button onClick={() => onDelete(client)}
+            className="p-2 rounded-lg hover:bg-red-50 text-zinc-400 hover:text-red-500 transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Contact */}
+      {(client.contact_name || client.phone) && (
+        <div className="flex items-center gap-2 text-sm text-zinc-600">
+          {client.contact_name && <span className="truncate">{client.contact_name}</span>}
+          {client.phone && (
+            <a href={`tel:${client.phone}`} className="flex items-center gap-1 text-zinc-400 shrink-0">
+              <Phone className="w-3 h-3" />
+              <span className="text-xs">{client.phone}</span>
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Object */}
+      {client.default_object && (
+        <p className="text-xs text-zinc-500 truncate">{client.default_object}</p>
+      )}
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-2 bg-zinc-50 rounded-lg p-2.5">
+        <div className="text-center">
+          <p className="text-[10px] text-zinc-400 uppercase tracking-wide">Смен</p>
+          <p className="text-sm font-bold text-zinc-900 mt-0.5">{stats.count}</p>
+        </div>
+        <div className="text-center border-x border-zinc-200">
+          <p className="text-[10px] text-zinc-400 uppercase tracking-wide">Выручка</p>
+          <p className="text-xs font-bold text-zinc-900 mt-0.5">{fmt(stats.revenue)}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] text-zinc-400 uppercase tracking-wide">Без оплаты</p>
+          <p className={`text-sm font-bold mt-0.5 ${stats.unpaid > 0 ? 'text-red-500' : 'text-zinc-400'}`}>
+            {stats.unpaid || '—'}
+          </p>
+        </div>
+      </div>
+
+      {/* Payment terms */}
+      {client.payment_terms && (
+        <p className="text-xs text-zinc-500">
+          Оплата: <span className="font-medium text-zinc-700">{PAYMENT_LABELS[client.payment_terms] || client.payment_terms}</span>
+          {client.payment_delay ? ` · отсрочка ${client.payment_delay} дн.` : ''}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Clients() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -140,9 +225,12 @@ export default function Clients() {
   function getClientStats(clientName) {
     const cs = shifts.filter(s => s.client_name === clientName);
     const revenue = cs.reduce((s, sh) => s + (sh.client_total || 0), 0);
-    const unpaid = cs.filter(s => s.payment_status === 'not_invoiced' || s.payment_status === 'invoiced').length;
+    const unpaid  = cs.filter(s => s.payment_status === 'not_invoiced' || s.payment_status === 'invoiced').length;
     return { count: cs.length, revenue, unpaid };
   }
+
+  function handleEdit(client)   { setEditClient(client); setFormOpen(true); }
+  function handleDelete(client) { if (confirm('Удалить?')) del.mutate(client.id); }
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -150,7 +238,7 @@ export default function Clients() {
         title="Заказчики"
         subtitle={`${filtered.length} компаний`}
         action={
-          <Button onClick={() => { setEditClient(null); setFormOpen(true); }} className="bg-amber-500 hover:bg-amber-600 text-white">
+          <Button onClick={() => { setEditClient(null); setFormOpen(true); }} size="sm" className="bg-amber-500 hover:bg-amber-600 text-white">
             <Plus className="w-4 h-4 mr-1" /> Добавить
           </Button>
         }
@@ -164,63 +252,80 @@ export default function Clients() {
       </div>
 
       <div className="p-4 md:p-6">
-        <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-100 bg-zinc-50">
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Компания</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Контакт</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Объект</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Условия оплаты</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Смен</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Выручка</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Без оплаты</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
-              {isLoading ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-400">Загрузка...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-400">Заказчиков нет</td></tr>
-              ) : filtered.map(client => {
-                const stats = getClientStats(client.name);
-                const legal = LEGAL_ENTITIES.find(l => l.value === client.legal_entity);
-                return (
-                  <tr key={client.id} className="hover:bg-zinc-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-zinc-900">{client.name}</div>
-                      {legal && <div className="text-xs text-zinc-400">{legal.label}</div>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-zinc-700">{client.contact_name || '—'}</div>
-                      {client.phone && <div className="text-xs text-zinc-400">{client.phone}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-600">{client.default_object || '—'}</td>
-                    <td className="px-4 py-3 text-zinc-600 text-sm">{client.payment_terms || '—'}</td>
-                    <td className="px-4 py-3 text-right text-zinc-700">{stats.count}</td>
-                    <td className="px-4 py-3 text-right font-medium text-zinc-900">
-                      {stats.revenue ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(stats.revenue) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {stats.unpaid > 0 ? <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{stats.unpaid}</span> : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => { setEditClient(client); setFormOpen(true); }} className="p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => { if (confirm('Удалить?')) del.mutate(client.id); }} className="p-1 rounded hover:bg-red-50 text-zinc-400 hover:text-red-500">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+        {isLoading ? (
+          <div className="py-20 text-center text-zinc-400 text-sm">Загрузка...</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-20 text-center text-zinc-400 text-sm">Заказчиков нет</div>
+        ) : (
+          <>
+            {/* ── Mobile: карточки ── */}
+            <div className="md:hidden space-y-3">
+              {filtered.map(client => (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  stats={getClientStats(client.name)}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+
+            {/* ── Desktop: таблица ── */}
+            <div className="hidden md:block bg-white rounded-xl border border-zinc-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 bg-zinc-50">
+                    {['Компания','Контакт','Объект','Условия оплаты','Смен','Выручка','Без оплаты',''].map((h, i) => (
+                      <th key={i} className={`px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide whitespace-nowrap ${i >= 4 && i <= 6 ? 'text-right' : 'text-left'}`}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-zinc-50">
+                  {filtered.map(client => {
+                    const stats = getClientStats(client.name);
+                    const legal = LEGAL_ENTITIES.find(l => l.value === client.legal_entity);
+                    return (
+                      <tr key={client.id} className="hover:bg-zinc-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-zinc-900">{client.name}</div>
+                          {legal && <div className="text-xs text-zinc-400">{legal.label}</div>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-zinc-700">{client.contact_name || '—'}</div>
+                          {client.phone && <div className="text-xs text-zinc-400">{client.phone}</div>}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 max-w-[140px] truncate">{client.default_object || '—'}</td>
+                        <td className="px-4 py-3 text-zinc-600 whitespace-nowrap">
+                          {PAYMENT_LABELS[client.payment_terms] || client.payment_terms || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-zinc-700">{stats.count}</td>
+                        <td className="px-4 py-3 text-right font-medium text-zinc-900 tabular-nums">{fmt(stats.revenue)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {stats.unpaid > 0
+                            ? <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{stats.unpaid}</span>
+                            : <span className="text-zinc-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => handleEdit(client)} className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDelete(client)} className="p-1.5 rounded hover:bg-red-50 text-zinc-400 hover:text-red-500 transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       <Dialog open={formOpen} onOpenChange={() => setFormOpen(false)}>
