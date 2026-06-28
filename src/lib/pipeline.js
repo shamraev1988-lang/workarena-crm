@@ -140,3 +140,27 @@ export const EMPLOYEE_PIPELINE = [
 
 export const getClientStage = (value) => CLIENT_PIPELINE.find(s => s.value === value) || CLIENT_PIPELINE[0]
 export const getEmployeeStage = (value) => EMPLOYEE_PIPELINE.find(s => s.value === value) || EMPLOYEE_PIPELINE[0]
+
+// ============================================================
+// ВОРОНКА ЗАЯВКИ (7 этапов) — операционка, связывает клиента и смены
+// ============================================================
+export const ORDER_PIPELINE = [
+  { value: 'new',      label: 'Новая заявка',      color: 'bg-zinc-100 text-zinc-600',     dot: 'bg-zinc-400',    icon: '📥', description: 'Запрос клиента: дата, объект, должности' },
+  { value: 'staffing', label: 'Подбор',            color: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400',    icon: '🔍', description: 'Набираем людей + резерв 30%' },
+  { value: 'assigned', label: 'Назначены',         color: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500',  icon: '✅', description: 'Все исполнители подтвердили выход' },
+  { value: 'checkin',  label: 'Прозвон-чекин',     color: 'bg-violet-100 text-violet-700', dot: 'bg-violet-500',  icon: '📞', description: 'За 2 часа до смены — обзвонили всех' },
+  { value: 'on_shift', label: 'На смене',          color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500',   icon: '🏨', description: 'Чекин выполнен, люди на объекте' },
+  { value: 'done',     label: 'Завершена',         color: 'bg-emerald-100 text-emerald-700',dot: 'bg-emerald-500', icon: '🏁', description: 'Чекаут, часы зафиксированы' },
+  { value: 'closed',   label: 'Закрыта',           color: 'bg-green-100 text-green-700',    dot: 'bg-green-600',   icon: '🏆', description: 'Оплата + выплаты + оценки' },
+]
+
+export const getOrderStage = (value) => ORDER_PIPELINE.find(s => s.value === value) || ORDER_PIPELINE[0]
+
+// Статусы прозвона-чекина
+export const CHECKIN_STATUSES = [
+  { value: 'pending',   label: 'Не прозвонен', color: 'bg-zinc-100 text-zinc-500',     dot: 'bg-zinc-300',  icon: '⏳' },
+  { value: 'confirmed', label: 'Подтвердил',   color: 'bg-emerald-100 text-emerald-700',dot: 'bg-emerald-500',icon: '✓' },
+  { value: 'no_answer', label: 'Не дозвонился', color: 'bg-red-100 text-red-700',       dot: 'bg-red-500',   icon: '✗' },
+  { value: 'replaced',  label: 'Заменён',      color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500', icon: '↻' },
+]
+export const getCheckinStatus = (value) => CHECKIN_STATUSES.find(s => s.value === value) || CHECKIN_STATUSES[0]

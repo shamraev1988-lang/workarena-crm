@@ -56,6 +56,7 @@ function makeEntity(tableName) {
 
 export const entities = {
   Shift:      makeEntity('shifts'),       // Смены / Табель
+  Order:      makeEntity('orders'),       // Заявки (заказы)
   Employee:   makeEntity('employees'),    // Сотрудники
   Client:     makeEntity('clients'),      // Заказчики (компании)
   Object:     makeEntity('objects'),      // Объекты (площадки)

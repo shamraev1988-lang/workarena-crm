@@ -10,13 +10,17 @@ import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 import ForgotPassword from '@/pages/ForgotPassword'
 import ResetPassword from '@/pages/ResetPassword'
+import PublicOrder from '@/pages/PublicOrder'
 
 import AppLayout from '@/components/layout/AppLayout'
 import Dashboard from '@/pages/Dashboard'
+import Orders from '@/pages/Orders'
+import Checkin from '@/pages/Checkin'
 import Shifts from '@/pages/Shifts'
 import Employees from '@/pages/Employees'
 import Clients from '@/pages/Clients'
 import Finance from '@/pages/Finance'
+import Payouts from '@/pages/Payouts'
 import Reports from '@/pages/Reports'
 import Settings from '@/pages/Settings'
 import UsersPage from '@/pages/settings/Users'
@@ -33,14 +37,19 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/zayavka/:clientId" element={<PublicOrder />} />
+              <Route path="/zayavka" element={<PublicOrder />} />
 
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/orders" element={<Orders />} />
+                  <Route path="/checkin" element={<Checkin />} />
                   <Route path="/shifts" element={<Shifts />} />
                   <Route path="/employees" element={<Employees />} />
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/finance" element={<Finance />} />
+                  <Route path="/payouts" element={<Payouts />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/users" element={<UsersPage />} />

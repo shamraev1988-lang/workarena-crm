@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { POSITIONS, CITIZENSHIPS } from '@/lib/constants'
 import { EMPLOYEE_PIPELINE, getEmployeeStage } from '@/lib/pipeline'
+import { employeeReliability, RELIABILITY_STYLE } from '@/lib/utils'
 
 const BANK_OPTIONS = ['Сбербанк','Тинькофф','ВТБ','Альфабанк','ОзонБанк','Банк Точка','Совкомбанк','Другой']
 
@@ -73,6 +74,9 @@ function EmployeeHistoryDialog({ employee, onClose }) {
   })
   if (!employee) return null
   const empShifts = shifts.filter(s => s.employee_name === employee.full_name).slice(0, 30)
+  const allEmpShifts = shifts.filter(s => s.employee_name === employee.full_name)
+  const rel = employeeReliability(allEmpShifts)
+  const relStyle = RELIABILITY_STYLE[rel.level]
   const avgRating = ratings.length ? (ratings.reduce((s,r) => s + r.rating, 0) / ratings.length).toFixed(1) : null
   const totalPayout = empShifts.reduce((s, sh) => s + (sh.employee_payout || 0), 0)
   const stage = getEmployeeStage(employee.hr_stage || 'new_response')
@@ -106,7 +110,7 @@ function EmployeeHistoryDialog({ employee, onClose }) {
         </div>
 
         {/* KPI */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <div className="bg-zinc-50 rounded-xl p-3 text-center">
             <p className="text-xs text-zinc-400 uppercase">Всего смен</p>
             <p className="text-2xl font-bold text-zinc-900">{empShifts.length}</p>
@@ -118,6 +122,11 @@ function EmployeeHistoryDialog({ employee, onClose }) {
           <div className="bg-amber-50 rounded-xl p-3 text-center">
             <p className="text-xs text-zinc-400 uppercase">Рейтинг</p>
             <p className="text-2xl font-bold text-amber-500">{avgRating ? `★ ${avgRating}` : '—'}</p>
+          </div>
+          <div className={`rounded-xl p-3 text-center ${rel.level === 'bad' ? 'bg-red-50' : rel.level === 'warn' ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+            <p className="text-xs text-zinc-400 uppercase">% отказов</p>
+            <p className={`text-2xl font-bold ${rel.level === 'bad' ? 'text-red-600' : rel.level === 'warn' ? 'text-amber-600' : 'text-emerald-600'}`}>{rel.declinePct}%</p>
+            <p className="text-[10px] text-zinc-400">{rel.declined} из {rel.total}{rel.reserveSaves ? ` · 🛟${rel.reserveSaves}` : ''}</p>
           </div>
         </div>
 
@@ -322,6 +331,20 @@ export default function Employees() {
   const [ratingEmp, setRatingEmp] = useState(null)
 
   const { data: employees = [], isLoading } = useQuery({ queryKey: ['employees'], queryFn: () => entities.Employee.list('-created_at') })
+  const { data: allShifts = [] } = useQuery({ queryKey: ['shifts'], queryFn: () => entities.Shift.list('-date') })
+
+  // Карта надёжности по имени сотрудника
+  const relByName = (() => {
+    const map = {}
+    for (const sh of allShifts) {
+      const k = sh.employee_name
+      if (!k) continue
+      ;(map[k] ||= []).push(sh)
+    }
+    const out = {}
+    for (const [k, arr] of Object.entries(map)) out[k] = employeeReliability(arr)
+    return out
+  })()
 
   const changeStage = useMutation({
     mutationFn: ({ id, stage }) => entities.Employee.update(id, { hr_stage: stage }),
@@ -387,6 +410,8 @@ export default function Employees() {
           const stage = getEmployeeStage(emp.hr_stage || 'new_response')
           const isBlacklist = emp.hr_stage === 'blacklist'
           const isTrusted = emp.hr_stage === 'trusted_employee'
+          const rel = relByName[emp.full_name] || { total: 0, declinePct: 0, level: 'new', declined: 0, reserveSaves: 0 }
+          const relStyle = RELIABILITY_STYLE[rel.level]
           return (
             <div key={emp.id} className={`bg-white rounded-xl border ${isBlacklist ? 'border-red-200 bg-red-50/30' : isTrusted ? 'border-green-200 bg-green-50/20' : 'border-zinc-200'} px-4 py-3`}>
               <div className="flex items-start gap-3">
@@ -408,6 +433,17 @@ export default function Employees() {
                     <StageBadge value={emp.hr_stage || 'new_response'} />
                     {emp.docs_checked && <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">✓ Docs</span>}
                     {emp.is_self_employed && <span className="text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">СЗ</span>}
+                    {rel.total > 0 && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${relStyle.cls}`}
+                        title={`${rel.declined} отказов из ${rel.total} смен`}>
+                        {relStyle.label} · {rel.declinePct}% отказов
+                      </span>
+                    )}
+                    {rel.reserveSaves > 0 && (
+                      <span className="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-full" title="Выходы из резерва">
+                        🛟 {rel.reserveSaves}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
                     {emp.position && <span>{emp.position}</span>}

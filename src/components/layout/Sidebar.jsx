@@ -1,17 +1,21 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, CalendarDays, Users, Building2,
-  Wallet, FileText, Settings, LogOut, ChevronLeft, ChevronRight, X, Menu
+  Wallet, FileText, Settings, LogOut, ChevronLeft, ChevronRight, X, Menu,
+  ClipboardList, PhoneCall, Banknote
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 
 const navItems = [
   { path: '/',          label: 'Дашборд',       icon: LayoutDashboard },
+  { path: '/orders',    label: 'Заявки',         icon: ClipboardList },
+  { path: '/checkin',   label: 'Прозвон',        icon: PhoneCall },
   { path: '/shifts',    label: 'Смены',          icon: CalendarDays },
   { path: '/employees', label: 'Сотрудники',     icon: Users },
   { path: '/clients',   label: 'Заказчики',      icon: Building2 },
   { path: '/finance',   label: 'Финансы',        icon: Wallet },
+  { path: '/payouts',   label: 'Выплаты',        icon: Banknote },
   { path: '/reports',   label: 'Аналитика',      icon: FileText },
   { path: '/settings',  label: 'Настройки',      icon: Settings },
 ];

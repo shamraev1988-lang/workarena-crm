@@ -5,6 +5,7 @@ import { format, isThisMonth } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { SHIFT_STATUSES, PAYMENT_STATUSES, CASH_ACCOUNTS } from '@/lib/constants';
 import PageHeader from '@/components/layout/PageHeader';
+import DayBoard from '@/components/DayBoard';
 
 function StatCard({ title, value, sub, icon: Icon, trend, color = 'amber' }) {
   const colors = {
@@ -73,6 +74,9 @@ export default function Dashboard() {
       />
 
       <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+        {/* Операционный экран дня */}
+        <DayBoard />
+
         {/* KPI grid: 2 cols on mobile, 4 on desktop */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <StatCard title="Выручка (месяц)"    value={fmt(revenue)}         icon={TrendingUp}   color="amber"   />

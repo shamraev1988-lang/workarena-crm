@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { entities } from '@/api/entities'
 import { supabase } from '@/api/supabase'
-import { Plus, Search, ChevronRight, Phone, Calendar, AlertTriangle, Star, Building2, Edit2, Trash2, X, ChevronDown } from 'lucide-react'
+import { Plus, Search, ChevronRight, Phone, Calendar, AlertTriangle, Star, Building2, Edit2, Trash2, X, ChevronDown, Link2 } from 'lucide-react'
 import { format, differenceInDays } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -375,6 +375,17 @@ export default function Clients() {
                   {client.pain_point && <p className="text-xs text-zinc-400 mt-1 italic truncate">💬 {client.pain_point}</p>}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  <button onClick={() => {
+                      const url = `${window.location.origin}/zayavka/${client.id}?name=${encodeURIComponent(client.name)}`;
+                      navigator.clipboard.writeText(url).then(
+                        () => toast.success('Ссылка на заявку скопирована'),
+                        () => toast.error('Не удалось скопировать')
+                      );
+                    }}
+                    title="Скопировать ссылку для заявки клиента"
+                    className="p-1.5 rounded-lg bg-zinc-50 border border-zinc-100 text-zinc-400 hover:text-amber-600">
+                    <Link2 className="w-3.5 h-3.5" />
+                  </button>
                   <button onClick={() => { setEditClient(client); setFormOpen(true) }}
                     className="p-1.5 rounded-lg bg-zinc-50 border border-zinc-100 text-zinc-400 hover:text-zinc-700">
                     <Edit2 className="w-3.5 h-3.5" />
