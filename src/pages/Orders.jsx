@@ -134,11 +134,17 @@ function OrderForm({ initial, clients, onSave, onClose }) {
   );
 }
 
-function OrderCard({ order, onClick }) {
+function OrderCard({ order, onClick, onDragStart, onDragEnd, isDragging }) {
   const fill = order.staff_needed ? Math.round((order.staff_assigned || 0) / order.staff_needed * 100) : 0;
   return (
-    <div onClick={onClick}
-      className="bg-white rounded-xl border border-zinc-200 p-3 space-y-2 cursor-pointer hover:border-amber-300 hover:shadow-sm transition-all">
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(order); }}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className={`bg-white rounded-xl border p-3 space-y-2 cursor-grab active:cursor-grabbing hover:border-amber-300 hover:shadow-sm transition-all select-none
+        ${isDragging ? 'opacity-40 scale-95 border-amber-300 shadow-lg' : 'border-zinc-200'}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="font-semibold text-sm text-zinc-900 truncate">{order.client_name}</p>
         <span className="text-[10px] text-zinc-400 shrink-0">#{order.order_no || '—'}</span>
@@ -169,6 +175,8 @@ export default function Orders() {
   const qc = useQueryClient();
   const [view, setView] = useState('board');
   const [editing, setEditing] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [overStage, setOverStage] = useState(null);
 
   const { data: orders = [] } = useQuery({ queryKey: ['orders'], queryFn: () => entities.Order.list('-date') });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => entities.Client.list('name') });
@@ -208,8 +216,25 @@ export default function Orders() {
           <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0 snap-x">
             {ORDER_PIPELINE.map(stage => {
               const col = orders.filter(o => o.stage === stage.value);
+              const isOver = overStage === stage.value;
+              const draggingOrder = draggingId ? orders.find(o => o.id === draggingId) : null;
+              const canDrop = draggingOrder && draggingOrder.stage !== stage.value;
               return (
-                <div key={stage.value} className="w-[260px] shrink-0 snap-start">
+                <div
+                  key={stage.value}
+                  className="w-[260px] shrink-0 snap-start"
+                  onDragOver={(e) => { if (canDrop) { e.preventDefault(); setOverStage(stage.value); } }}
+                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverStage(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggingId && canDrop) {
+                      moveStage.mutate({ id: draggingId, stage: stage.value });
+                      toast.success(`Заявка → ${stage.label}`);
+                    }
+                    setOverStage(null);
+                    setDraggingId(null);
+                  }}
+                >
                   <div className="flex items-center justify-between mb-2 px-1">
                     <div className="flex items-center gap-1.5">
                       <span className={`w-2 h-2 rounded-full ${stage.dot}`} />
@@ -217,8 +242,23 @@ export default function Orders() {
                     </div>
                     <span className="text-xs text-zinc-400 bg-zinc-100 rounded-full px-2 py-0.5">{col.length}</span>
                   </div>
-                  <div className="space-y-2 min-h-[60px]">
-                    {col.map(o => <OrderCard key={o.id} order={o} onClick={() => setEditing(o)} />)}
+                  <div className={`space-y-2 min-h-[60px] rounded-xl p-1 transition-colors
+                    ${isOver && canDrop ? 'bg-amber-50 ring-2 ring-amber-300 ring-dashed' : ''}`}>
+                    {col.map(o => (
+                      <OrderCard
+                        key={o.id}
+                        order={o}
+                        onClick={() => setEditing(o)}
+                        onDragStart={() => setDraggingId(o.id)}
+                        onDragEnd={() => { setDraggingId(null); setOverStage(null); }}
+                        isDragging={draggingId === o.id}
+                      />
+                    ))}
+                    {isOver && canDrop && (
+                      <div className="border-2 border-dashed border-amber-300 rounded-xl h-14 flex items-center justify-center text-xs text-amber-500 font-medium bg-amber-50/50">
+                        Перетащить сюда
+                      </div>
+                    )}
                   </div>
                 </div>
               );

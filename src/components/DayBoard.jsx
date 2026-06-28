@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { entities } from '@/api/entities';
 import { Link } from 'react-router-dom';
 import { Phone, AlertTriangle, CheckCircle2, Layers, Shield, Target } from 'lucide-react';
-import { format, isToday, startOfMonth } from 'date-fns';
+import { format, isToday, startOfMonth, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
 function Stat({ label, value, sub, tone = 'zinc', alert }) {
@@ -25,22 +25,22 @@ export default function DayBoard() {
   const { data: orders = [] } = useQuery({ queryKey: ['orders'], queryFn: () => entities.Order.list('-date') });
   const { data: shifts = [] } = useQuery({ queryKey: ['shifts'], queryFn: () => entities.Shift.list('-date') });
 
-  const todayOrders = orders.filter(o => o.date && isToday(new Date(o.date)));
-  const todayShifts = shifts.filter(s => s.date && isToday(new Date(s.date)) && !s.is_reserve);
+  const todayOrders = orders.filter(o => o.date && isToday(parseISO(o.date)));
+  const todayShifts = shifts.filter(s => s.date && isToday(parseISO(s.date)) && !s.is_reserve);
 
   const confirmed   = todayShifts.filter(s => s.checkin_status === 'confirmed').length;
   const noAnswer    = todayShifts.filter(s => s.checkin_status === 'no_answer').length;
   const totalToday  = todayShifts.length;
   const confirmPct  = totalToday ? Math.round((confirmed / totalToday) * 100) : 0;
-  const reserveUsed = shifts.filter(s => s.date && isToday(new Date(s.date)) && s.is_reserve).length;
+  const reserveUsed = shifts.filter(s => s.date && isToday(parseISO(s.date)) && s.is_reserve).length;
 
   // SLA месяца: доля заявок, закрытых вовремя (stage done/closed без флага проблем)
   const monthStart = startOfMonth(new Date());
-  const monthOrders = orders.filter(o => o.date && new Date(o.date) >= monthStart);
+  const monthOrders = orders.filter(o => o.date && parseISO(o.date) >= monthStart);
   const slaOk = monthOrders.filter(o => ['done', 'closed', 'on_shift'].includes(o.stage)).length;
   const slaPct = monthOrders.length ? Math.round((slaOk / monthOrders.length) * 100) : 100;
 
-  const monthShifts = shifts.filter(s => s.date && new Date(s.date) >= monthStart && !s.is_reserve);
+  const monthShifts = shifts.filter(s => s.date && parseISO(s.date) >= monthStart && !s.is_reserve);
   const noShows = monthShifts.filter(s => s.status === 'no_show' || s.checkin_status === 'no_answer').length;
   const noShowPct = monthShifts.length ? ((noShows / monthShifts.length) * 100).toFixed(1) : '0';
 
