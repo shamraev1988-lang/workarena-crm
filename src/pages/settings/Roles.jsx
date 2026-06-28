@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Shield, ChevronDown, ChevronUp, Copy, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { supabase } from '@/api/supabase'
 import PageHeader from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +11,6 @@ import { Switch } from '@/components/ui/switch'
 import { Can, usePermission } from '@/lib/PermissionContext'
 import { ALL_PERMISSIONS, PRESET_ROLES } from '@/lib/permissions'
 
-// Группировка прав по разделам
 const PERMISSION_GROUPS = [
   { label: 'Смены / Табель', keys: ['shifts.view','shifts.view_finance','shifts.create','shifts.edit','shifts.delete','shifts.export','shifts.invoice'] },
   { label: 'Сотрудники', keys: ['employees.view','employees.view_docs','employees.create','employees.edit','employees.delete'] },
@@ -52,11 +53,9 @@ function RoleEditor({ role, onSave, onCancel }) {
       <div className="space-y-2">
         {PERMISSION_GROUPS.map(group => {
           const allChecked = group.keys.every(k => perms.has(k))
-          const someChecked = group.keys.some(k => perms.has(k))
           const isOpen = expanded[group.label]
           return (
             <div key={group.label} className="border border-zinc-200 rounded-xl overflow-hidden">
-              {/* Group header */}
               <div className="flex items-center gap-3 px-4 py-3 bg-zinc-50 cursor-pointer"
                 onClick={() => setExpanded(p => ({ ...p, [group.label]: !p[group.label] }))}>
                 <div onClick={e => { e.stopPropagation(); toggleGroup(group.keys) }}>
@@ -66,7 +65,6 @@ function RoleEditor({ role, onSave, onCancel }) {
                 <span className="text-xs text-zinc-400">{group.keys.filter(k => perms.has(k)).length}/{group.keys.length}</span>
                 {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
               </div>
-              {/* Individual permissions */}
               {isOpen && (
                 <div className="divide-y divide-zinc-100">
                   {group.keys.map(key => (
@@ -82,7 +80,6 @@ function RoleEditor({ role, onSave, onCancel }) {
         })}
       </div>
 
-      {/* Preview */}
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
         <p className="text-xs font-semibold text-blue-700 mb-1">Итого прав: {perms.size} из {Object.keys(ALL_PERMISSIONS).length}</p>
         <div className="flex flex-wrap gap-1">
@@ -104,20 +101,57 @@ function RoleEditor({ role, onSave, onCancel }) {
 
 export default function RolesPage() {
   const { can } = usePermission()
-  const [customRoles, setCustomRoles] = useState([])
-  const [editing, setEditing] = useState(null) // null | 'new' | role object
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(null)
   const [expandedPreset, setExpandedPreset] = useState(null)
 
-  function saveCustomRole(data) {
-    if (editing === 'new') {
-      setCustomRoles(p => [...p, { ...data, id: Date.now().toString() }])
-      toast.success('Роль создана')
-    } else {
-      setCustomRoles(p => p.map(r => r.id === editing.id ? { ...r, ...data } : r))
-      toast.success('Роль обновлена')
-    }
-    setEditing(null)
-  }
+  const { data: customRoles = [] } = useQuery({
+    queryKey: ['custom_roles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data || []
+    },
+  })
+
+  const saveRole = useMutation({
+    mutationFn: async (data) => {
+      if (editing === 'new') {
+        const { error } = await supabase.from('custom_roles').insert({
+          name: data.name,
+          permissions: data.permissions,
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('custom_roles').update({
+          name: data.name,
+          permissions: data.permissions,
+        }).eq('id', editing.id)
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['custom_roles'] })
+      toast.success(editing === 'new' ? 'Роль создана' : 'Роль обновлена')
+      setEditing(null)
+    },
+    onError: (e) => toast.error('Ошибка: ' + e.message),
+  })
+
+  const deleteRole = useMutation({
+    mutationFn: async (id) => {
+      const { error } = await supabase.from('custom_roles').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['custom_roles'] })
+      toast.success('Роль удалена')
+    },
+    onError: (e) => toast.error('Ошибка: ' + e.message),
+  })
 
   if (editing) {
     return (
@@ -130,7 +164,7 @@ export default function RolesPage() {
           <div className="bg-white rounded-xl border border-zinc-200 p-5">
             <RoleEditor
               role={editing === 'new' ? null : editing}
-              onSave={saveCustomRole}
+              onSave={(data) => saveRole.mutate(data)}
               onCancel={() => setEditing(null)}
             />
           </div>
@@ -154,7 +188,6 @@ export default function RolesPage() {
       />
 
       <div className="p-4 md:p-6 space-y-6 max-w-3xl">
-        {/* Preset roles */}
         <div>
           <h2 className="text-sm font-semibold text-zinc-700 mb-3">Системные роли</h2>
           <div className="space-y-2">
@@ -199,7 +232,6 @@ export default function RolesPage() {
           </div>
         </div>
 
-        {/* Custom roles */}
         {customRoles.length > 0 && (
           <div>
             <h2 className="text-sm font-semibold text-zinc-700 mb-3">Кастомные роли</h2>
@@ -216,7 +248,7 @@ export default function RolesPage() {
                       <button onClick={() => setEditing(role)} className="p-1.5 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                       </button>
-                      <button onClick={() => { if (confirm('Удалить роль?')) setCustomRoles(p => p.filter(r => r.id !== role.id)) }}
+                      <button onClick={() => { if (confirm('Удалить роль?')) deleteRole.mutate(role.id) }}
                         className="p-1.5 rounded hover:bg-red-50 text-zinc-400 hover:text-red-500">
                         <Trash2 className="w-4 h-4" />
                       </button>
