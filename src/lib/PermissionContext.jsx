@@ -25,7 +25,7 @@ export function PermissionProvider({ children }) {
           .from('app_roles')
           .select('*')
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle()
 
         if (data) {
           setRole(data)
