@@ -10,7 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CASH_ACCOUNTS, CASH_FLOW_TYPES, EXPENSE_CATEGORIES } from '@/lib/constants';
+import { CASH_ACCOUNTS as CASH_ACCOUNTS_DEFAULT, CASH_FLOW_TYPES, EXPENSE_CATEGORIES as EXPENSE_CATEGORIES_DEFAULT } from '@/lib/constants';
+import { useDict } from '@/lib/SettingsContext';
+
+const CASH_ACCOUNTS = CASH_ACCOUNTS_DEFAULT;
+const EXPENSE_CATEGORIES = EXPENSE_CATEGORIES_DEFAULT;
 
 function fmt(n) {
   if (n === null || n === undefined || n === '') return '—';
@@ -25,6 +29,9 @@ const EMPTY = {
 
 function CashFlowForm({ flow, onClose }) {
   const qc = useQueryClient();
+  const _dict = useDict();
+  const CASH_ACCOUNTS = _dict.cash_accounts;
+  const EXPENSE_CATEGORIES = _dict.expense_categories;
   const [form, setForm] = useState(flow ? { ...EMPTY, ...flow } : EMPTY);
   const isEdit = !!flow?.id;
   const set = (f, v) => setForm(p => ({ ...p, [f]: v }));
@@ -166,6 +173,7 @@ function FlowCard({ flow, onEdit, onDelete }) {
 
 export default function Finance() {
   const qc = useQueryClient();
+  const CASH_ACCOUNTS = useDict().cash_accounts;
   const [search, setSearch] = useState('');
   const [accountFilter, setAccountFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/SettingsContext';
 
 const navItems = [
   { path: '/',          label: 'Дашборд',       icon: LayoutDashboard },
@@ -54,6 +55,7 @@ export default function Sidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { logout, user } = useAuth();
+  const company = useCompany();
 
   return (
     <>
@@ -66,12 +68,12 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-zinc-800 shrink-0">
           <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-base">W</span>
+            <span className="text-white font-bold text-base">{(company.name||"W").charAt(0)}</span>
           </div>
           {!collapsed && (
             <div>
-              <h1 className="font-bold text-sm text-white tracking-tight">Workarena</h1>
-              <p className="text-xs text-zinc-500">CRM временного персонала</p>
+              <h1 className="font-bold text-sm text-white tracking-tight">{company.name}</h1>
+              <p className="text-xs text-zinc-500">{company.tagline}</p>
             </div>
           )}
         </div>

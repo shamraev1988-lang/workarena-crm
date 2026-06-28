@@ -4,6 +4,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/lib/AuthContext'
 import { PermissionProvider } from '@/lib/PermissionContext'
+import { SettingsProvider } from '@/lib/SettingsContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
 import Login from '@/pages/Login'
@@ -25,12 +26,16 @@ import Reports from '@/pages/Reports'
 import Settings from '@/pages/Settings'
 import UsersPage from '@/pages/settings/Users'
 import RolesPage from '@/pages/settings/Roles'
+import CompanySettings from '@/pages/settings/Company'
+import Dictionaries from '@/pages/settings/Dictionaries'
+import PipelinesSettings from '@/pages/settings/Pipelines'
 
 function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <PermissionProvider>
+          <SettingsProvider>
           <Router>
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -54,6 +59,9 @@ function App() {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/users" element={<UsersPage />} />
                   <Route path="/settings/roles" element={<RolesPage />} />
+                  <Route path="/settings/company" element={<CompanySettings />} />
+                  <Route path="/settings/dictionaries" element={<Dictionaries />} />
+                  <Route path="/settings/pipelines" element={<PipelinesSettings />} />
                 </Route>
               </Route>
 
@@ -61,6 +69,7 @@ function App() {
             </Routes>
           </Router>
           <Toaster richColors position="top-right" />
+          </SettingsProvider>
         </PermissionProvider>
       </QueryClientProvider>
     </AuthProvider>

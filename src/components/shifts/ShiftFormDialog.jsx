@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Copy } from 'lucide-react';
-import { POSITIONS, WORK_TYPES, SHIFT_STATUSES, PAYMENT_STATUSES, PAYOUT_STATUSES, RATINGS, LEGAL_ENTITIES } from '@/lib/constants';
+import { SHIFT_STATUSES, PAYMENT_STATUSES, PAYOUT_STATUSES, RATINGS } from '@/lib/constants';
+import { useDict } from '@/lib/SettingsContext';
 
 const EMPTY = {
   date: new Date().toISOString().slice(0, 10),
@@ -32,6 +33,10 @@ function fmtMoney(n) {
 
 export default function ShiftFormDialog({ open, onClose, shift, duplicateFrom }) {
   const qc = useQueryClient();
+  const dict = useDict();
+  const POSITIONS = dict.positions;
+  const WORK_TYPES = dict.work_types;
+  const LEGAL_ENTITIES = dict.legal_entities;
   const [form, setForm] = useState(EMPTY);
   const isEdit = !!shift?.id;
   const isDuplicate = !!duplicateFrom;

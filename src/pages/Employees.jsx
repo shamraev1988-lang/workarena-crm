@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { POSITIONS, CITIZENSHIPS } from '@/lib/constants'
+import { POSITIONS as POSITIONS_DEFAULT, CITIZENSHIPS as CITIZENSHIPS_DEFAULT } from '@/lib/constants'
+import { useDict } from '@/lib/SettingsContext'
 import { EMPLOYEE_PIPELINE, getEmployeeStage } from '@/lib/pipeline'
 import { employeeReliability, RELIABILITY_STYLE } from '@/lib/utils'
 
@@ -247,6 +248,9 @@ function RatingDialog({ employee, onClose }) {
 
 function EmployeeForm({ employee, onClose }) {
   const qc = useQueryClient()
+  const dict = useDict()
+  const POSITIONS = dict.positions
+  const CITIZENSHIPS = dict.citizenships
   const isEdit = !!employee?.id
   const EMPTY = {
     full_name: '', phone: '', telegram: '', position: '', citizenship: '',

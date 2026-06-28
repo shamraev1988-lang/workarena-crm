@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ORDER_PIPELINE, getOrderStage } from '@/lib/pipeline';
-import { POSITIONS } from '@/lib/constants';
+import { POSITIONS as POSITIONS_DEFAULT } from '@/lib/constants';
+import { useSettings } from '@/lib/SettingsContext';
 
-const posLabel = (v) => POSITIONS.find(p => p.value === v)?.label || v;
+const posLabel = (v) => POSITIONS_DEFAULT.find(p => p.value === v)?.label || v;
 
 function emptyOrder() {
   return {
@@ -25,6 +26,9 @@ function emptyOrder() {
 }
 
 function OrderForm({ initial, clients, onSave, onClose }) {
+  const settings = useSettings();
+  const POSITIONS = settings.config.dict.positions;
+  const reservePct = (settings.config.company.reserve_percent ?? 30) / 100;
   const [f, setF] = useState(initial);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const setPos = (i, k, v) => setF(p => {
@@ -37,7 +41,7 @@ function OrderForm({ initial, clients, onSave, onClose }) {
 
   const submit = () => {
     if (!f.client_name) return toast.error('Укажите заказчика');
-    const reserve = Math.ceil(totalNeeded * 0.3);
+    const reserve = Math.ceil(totalNeeded * reservePct);
     onSave({ ...f, staff_needed: totalNeeded, reserve_needed: reserve });
   };
 
@@ -112,7 +116,7 @@ function OrderForm({ initial, clients, onSave, onClose }) {
             </div>
             <p className="text-xs text-zinc-400 mt-1.5">
               Итого: <span className="font-semibold text-zinc-700">{totalNeeded}</span> чел. + резерв 30% =
-              <span className="font-semibold text-amber-600"> {Math.ceil(totalNeeded * 0.3)}</span>
+              <span className="font-semibold text-amber-600"> {Math.ceil(totalNeeded * reservePct)}</span>
             </p>
           </div>
 
